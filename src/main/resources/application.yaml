@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    url: jdbc:oracle:thin:@//localhost:1522/XEPDB1 # 这里用的是oracle数据库的连接地址，XEPDB1是数据库的名字
+    username: NECHK # 这里用的是oracle数据库的用户名
+    password: 123456 # 这里用的是oracle数据库的密码
+    driver-class-name: oracle.jdbc.OracleDriver
+mybatis:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    map-underscore-to-camel-case: true
+  mapper-locations: classpath:mapper/**Mapper.xml
