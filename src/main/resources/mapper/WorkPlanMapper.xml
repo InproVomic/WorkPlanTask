@@ -6,7 +6,10 @@
 <mapper namespace="com.cbb.workPlanTask.mapper.WorkPlanMapper">
 
     <select id="getAllWorkPlans" resultType="com.cbb.workPlanTask.model.WorkPlan">
-        select * from NECHK.tbl_workplan order by INSERT_TIME desc
+        SELECT *
+        FROM NECHK.tbl_workplan
+        WHERE INSERT_TIME >= SYSDATE - INTERVAL '1' HOUR
+        ORDER BY INSERT_TIME DESC
     </select>
 
 </mapper>
