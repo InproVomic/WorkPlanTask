@@ -1,4 +1,4 @@
-package com.cbb.workPlanTask;
+package com.cbb.workPlanTask.Util;
 
 import org.quartz.CronExpression;
 
@@ -19,6 +19,7 @@ public class CronUtil {
         LocalDateTime nextTime = next.toInstant()
                 .atZone(ZoneId.systemDefault())
                 .toLocalDateTime();
+
 
         return nextTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
     }

@@ -1,5 +1,7 @@
 package com.cbb.workPlanTask;
 
+import org.junit.jupiter.api.Test;
+
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -50,5 +52,19 @@ class ScheduledTaskTest {
             System.out.println("不包含目标词");
         }
     }
+
+//    @Test
+//    void test(){
+//        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+//        String time = "2025-05-25 18:4:01";
+//
+//        if(dbTimeStr.length() < 19){
+//            // 补0操作
+//            dbTimeStr = dbTimeStr.substring(0, 14) + "0" + dbTimeStr.substring(14);
+//        }
+//        // 分别将insertTime和planTimeStr转换成LocalDateTime
+//        LocalDateTime insertTime = LocalDateTime.parse(time, formatter);
+//
+//    }
 
 }

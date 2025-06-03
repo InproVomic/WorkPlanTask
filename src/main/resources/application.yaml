@@ -13,5 +13,14 @@ mybatis:
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
     map-underscore-to-camel-case: true
   mapper-locations: classpath:mapper/**Mapper.xml
-server:
-  port: 8081
+work-plan-task:
+  # 0 */10 * * * ? 是每10分钟执行一次定时任务  0 0 * * * ? 是每小时执行一次定时任务
+  cron: 0/10 * * * * ? # 这里是定时任务的执行时间
+  filePath: delayPlans.json # 这里是延迟计划的存储路径
+  day: # “天”任务的执行时间范围
+    execute-start-time: 0 0 0 ? ? ? # 这里是每天的开始执行范围，这里是凌晨0点
+    execute-end-time: 0 0 2 ? ? ? # 这里是每天的结束执行范围，这里是凌晨2点
+  month:
+    execute-start-time: 0 0 2 ? ? ? # 这里是每月的开始执行范围，这里是凌晨2点
+    execute-end-time: 0 30 23 ? ? ? # 这里是每月的结束执行范围，这里是凌晨23点30分
+

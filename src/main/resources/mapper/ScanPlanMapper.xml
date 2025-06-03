@@ -18,6 +18,13 @@
     </select>
 
     <select id="searchSameDayScanPlan" resultType="com.cbb.workPlanTask.model.ScanPlan">
-        select * from NECHK.r_int_tbl_scan_plan where PLAN_PERIOD_CRON like '%' || #{day} || ' ' || #{month} || '%'
+        SELECT *
+        FROM NECHK.r_int_tbl_scan_plan
+        WHERE
+            PLAN_PERIOD_CRON LIKE '% ' || #{month} || ' %'
+                AND (PLAN_PERIOD_CRON LIKE '% ' || #{day} || ' %'
+                     OR PLAN_PERIOD_CRON LIKE '%,' || #{day} || ' %'
+                     OR PLAN_PERIOD_CRON LIKE '%,' || #{day} || ',%'
+                     OR PLAN_PERIOD_CRON LIKE '% ' || #{day} || ',%')
     </select>
 </mapper>
