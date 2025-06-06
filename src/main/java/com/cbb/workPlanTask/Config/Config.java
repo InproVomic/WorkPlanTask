@@ -12,8 +12,8 @@ public class Config {
     @Value("${work-plan-task.cron}")
     private String cron;
 
-    @Value("${work-plan-task.filePath}")
-    private String filePath;
+//    @Value("${work-plan-task.filePath}")
+//    private String filePath;
 
     @Value("${work-plan-task.day.execute-start-time}")
     private String dayExecuteStartTime;
@@ -26,4 +26,7 @@ public class Config {
 
     @Value("${work-plan-task.month.execute-end-time}")
     private String monthExecuteEndTime;
+
+    @Value("${work-plan-task.find-time}")
+    private Integer findTime;
 }

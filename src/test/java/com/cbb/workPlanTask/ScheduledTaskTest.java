@@ -67,4 +67,10 @@ class ScheduledTaskTest {
 //
 //    }
 
+    @Test
+    void test(){
+        ScheduledTask scheduledTask = new ScheduledTask();
+        System.out.println(scheduledTask.isCronMatchDay("0 10 2 * * * ?",2025,6,23));
+    }
+
 }

@@ -2,7 +2,6 @@ package com.cbb.workPlanTask;
 
 import com.cbb.workPlanTask.Config.Config;
 import com.cbb.workPlanTask.Util.CronUtil;
-import com.cbb.workPlanTask.Util.FileUtil;
 import com.cbb.workPlanTask.mapper.ScanPlanMapper;
 import com.cbb.workPlanTask.mapper.WorkPlanMapper;
 import com.cbb.workPlanTask.model.ScanPlan;
@@ -16,11 +15,13 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 @Component
@@ -39,14 +40,18 @@ public class ScheduledTask {
     @Scheduled(cron = "#{@config.cron}")
     public void runHourly() throws IOException, ParseException {
         // 查出所有可读的workPlan
-        List<WorkPlan> workPlans = workPlanMapper.getAllWorkPlans();// 查出所有可读的workPlan
+        List<WorkPlan> workPlans = workPlanMapper.getAllWorkPlans(config.getFindTime());// 查出所有可读的workPlan
 
-        // 扫描推迟的任务,并插入workPlans中
-        String filePath = config.getFilePath();
-        FileUtil.readAllWorkPlansAndClearFile(filePath, workPlans);
+//        // 扫描推迟的任务,并插入workPlans中
+//        String filePath = config.getFilePath();
+//        FileUtil.readAllWorkPlansAndClearFile(filePath, workPlans);
 
         log.info("读取到{}个计划任务", workPlans.size());
         for (WorkPlan workPlan : workPlans) {
+            if (workPlan.getPlanName().length() <= 6) {
+                log.error("任务名称:'{}'不规范，长度不大于6，请检查", workPlan.getPlanName());
+                continue;
+            }
             // 判断是否在1小时内
 //            boolean result = getDuration(workPlan.getInsertTime());
 //            if(!result){
@@ -76,14 +81,24 @@ public class ScheduledTask {
             }
 
             // 若为当前任务，则跳出当前workPlan
-            if(isBreak){
+            if (isBreak) {
                 continue;
             }
 
             // 判断当前任务是否需要进行推迟
             if (isDelay(workPlan, scanPlans)) {
-                // 将推迟的任务追加到文件中
-                FileUtil.appendWorkPlanToFile(workPlan, filePath);
+                String insertTimeStr = workPlan.getInsertTime();
+                if (!insertTimeStr.contains(".")) {
+                    // 如果没有毫秒，补成 .000
+                    insertTimeStr += ".000";
+                }
+
+                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
+                Date insertTimeDate = sdf.parse(insertTimeStr);
+                workPlanMapper.updateInsertTime(workPlan.getPlanId(), insertTimeDate);
+
+//                // 将推迟的任务追加到文件中
+//                FileUtil.appendWorkPlanToFile(workPlan, filePath);
                 continue;
             }
 
@@ -121,11 +136,17 @@ public class ScheduledTask {
     private boolean isDelay(WorkPlan workPlan, List<ScanPlan> scanPlans) throws ParseException {
         for (ScanPlan scanPlan : scanPlans) {
             // 如果处于已激活状态，则判断其执行日期
-            if(scanPlan.getPlanState().equals("1")){
+            if (scanPlan.getPlanState().equals("1")) {
                 // 将Cron表达式转换成下一次执行的日期
                 String planTimeStr = CronUtil.getNextFireTimeString(scanPlan.getPlanPeriodCron());
                 DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+                DateTimeFormatter formatter2 = DateTimeFormatter.ofPattern("yyyy-MM-dd");
                 String dateTimeStr = workPlan.getInsertTime();
+                String workPlanTimeStr = workPlan.getPlanTime();
+                if (workPlanTimeStr.contains(",")) {
+                    // 如果planTime包含逗号，则只取第一个时间点
+                    workPlanTimeStr = workPlanTimeStr.substring(0, workPlanTimeStr.indexOf(','));
+                }
 
                 if (dateTimeStr.contains(".")) {
                     dateTimeStr = dateTimeStr.substring(0, dateTimeStr.indexOf('.'));
@@ -133,27 +154,34 @@ public class ScheduledTask {
 
                 // 分别将insertTime和planTimeStr转换成LocalDateTime
                 LocalDateTime insertTime = LocalDateTime.parse(dateTimeStr, formatter);
+                LocalDate workPlanTime = LocalDate.parse(workPlanTimeStr, formatter2);
                 assert planTimeStr != null;
                 LocalDateTime planTime = LocalDateTime.parse(planTimeStr, formatter);
 
                 int subTime = planTime.getMonthValue() - LocalDateTime.now().getMonthValue();
-                if(planTime.getYear() - LocalDateTime.now().getYear() == 1){
-                    subTime += 12;
+                if (planTime.getYear() - LocalDateTime.now().getYear() >= 1) {
+                    subTime += 12 * (planTime.getYear() - LocalDateTime.now().getYear());
                 }
 
                 // 如果 planTime 比现在时间往后推了2个月以上，说明已经执行过，则不推迟任务
-                if(subTime > 2){
+                if (subTime > 2) {
                     return false;
                 }
 
                 // 如果 planTime 已经过去，则不推迟任务
-                if(planTime.isBefore(LocalDateTime.now())){
+                if (planTime.isBefore(LocalDateTime.now())) {
+                    return false;
+                }
+
+                // 如果是"天"任务，且和workPlan表中的月份相同，则不推迟任务
+                if (scanPlan.getPlanPeriodCn().equals("天") && (workPlanTime.getMonthValue() == planTime.getMonthValue() ||
+                        (planTime.isBefore(LocalDateTime.now()) && planTime.plusDays(1).getMonthValue() == workPlanTime.getMonthValue()))) {
                     return false;
                 }
 
                 // 如果 insertTime 早于 planTime，就将 insertTime 设置为 planTime + 1 小时
                 if (insertTime.isBefore(planTime)) {
-                    insertTime = planTime.plusHours(1);
+                    insertTime = planTime.plusHours(config.getFindTime());
                 }
 
                 // 修改workPlan的insertTime字段为新的时间
@@ -166,17 +194,17 @@ public class ScheduledTask {
     }
 
     // 执行任务
-    private void updateWorkPlan(WorkPlan workPlan,List<ScanPlan> scanPlans){
+    private void updateWorkPlan(WorkPlan workPlan, List<ScanPlan> scanPlans) {
         // 遍历任务
         for (ScanPlan scanPlan : scanPlans) {
             int index = scanPlan.getPlanName().indexOf('-');
-            if(index == -1){
+            if (index == -1) {
                 log.error("任务名称格式不正确，应为：计划名-任务id");
                 continue;
             }
 
             // 把PLAN_NAME字段-之后的id替换成nechk.tbl_workplan表中的plan_id
-            scanPlan.setPlanName(scanPlan.getPlanName().substring(0,index+1) + workPlan.getPlanId());
+            scanPlan.setPlanName(scanPlan.getPlanName().substring(0, index + 1) + workPlan.getPlanId());
             // 把PLAN_STATE修改为1
             scanPlan.setPlanState("1");
 
@@ -187,7 +215,8 @@ public class ScheduledTask {
         }
     }
 
-    private TaskDate getTaskExecuteDate(ScanPlan scanPlan, String planTimeStr, String insertTimeStr){
+
+    private TaskDate getTaskExecuteDate(ScanPlan scanPlan, String planTimeStr, String insertTimeStr) {
         LocalDate planTime = LocalDate.parse(planTimeStr, DateTimeFormatter.ofPattern("yyyy-MM-dd"));
 
         // 查询当天的任务列表
@@ -195,24 +224,29 @@ public class ScheduledTask {
                 planTime.getMonthValue(),
                 planTime.getDayOfMonth());
 
+        // 移除当天不执行的任务
+        scanPlans.removeIf(plan -> !isCronMatchDay(plan.getPlanPeriodCron(),
+                planTime.getYear(), planTime.getMonthValue(), planTime.getDayOfMonth()));
+
+
         // 如果是天任务则要寻找当天0-2点最大执行时间，间隔10分钟
         // 记得要拆分多个planTime的时间！
         String maxExecTime = config.getMonthExecuteStartTime();
         String endTime = config.getMonthExecuteEndTime();
 
-        if(scanPlan.getPlanPeriodCn().equals("天")){
+        if (scanPlan.getPlanPeriodCn().equals("天")) {
             maxExecTime = config.getDayExecuteStartTime();
             endTime = config.getDayExecuteEndTime();
         }
 
 
         // 得到当天最晚执行的任务时间
-        List<String> maxExecList = getMaxExecList(scanPlans,maxExecTime,endTime);
+        List<String> maxExecList = getMaxExecList(scanPlans, maxExecTime, endTime);
 
         // 查找上一个任务是不是OA或者核心层又或者是天执行的任务，若是则执行时间间隔10分钟，否则30分钟
         int plusTime = 30;
-        if(maxExecList.get(1).contains("OA") || maxExecList.get(1).contains("核心层") ||
-                scanPlan.getPlanPeriodCn().equals("天")){
+        if (maxExecList.get(1).contains("OA") || maxExecList.get(1).contains("核心层") ||
+                scanPlan.getPlanPeriodCn().equals("天")) {
             plusTime = 10;
         }
 
@@ -222,42 +256,91 @@ public class ScheduledTask {
         int second = getNum(maxExecList.get(0), 1);
         int day = planTime.getDayOfMonth();
         int month = planTime.getMonthValue();
-        if(minute >= 60){
+        if (minute >= 60) {
             hour += minute / 60;
             minute %= 60;
         }
 
-        if(hour >= 24){
+        if (hour >= 24) {
             hour -= 24;
             day += 1;
         }
 
         // 处理同一天执行可能出现的问题
-        if(insertTimeStr.equals(planTimeStr)){
+        if (insertTimeStr.equals(planTimeStr)) {
             String timeStr = String.format("%02d:%02d:%02d", hour, minute, second);
             LocalTime giveTime = LocalTime.parse(timeStr, DateTimeFormatter.ofPattern("HH:mm:ss"));
 
             // 如果是当天任务，且小于当前时间，则往后推一个小时的整时
             LocalTime now = LocalTime.now();
-            if(now.isAfter(giveTime)) {
+            if (now.isAfter(giveTime)) {
                 hour = now.getHour() + 1;
                 minute = 0;
                 second = 0;
             }
         }
 
-        if(hour >= 24){
+        if (hour >= 24) {
             hour -= 24;
             day += 1;
         }
-        if(day > planTime.getMonth().length(planTime.isLeapYear())){
+        if (day > planTime.getMonth().length(planTime.isLeapYear())) {
             month += 1;
             day = 1;
         }
-        if(month > 12){
+        if (month > 12) {
             month = 1;
         }
         return new TaskDate(scanPlan.getPlanName(), month, day, hour, minute, second);
+    }
+
+    public int findNthSpace(String str, int n) {
+        int count = 0;
+        for (int i = 0; i < str.length(); i++) {
+            if (str.charAt(i) == ' ') {
+                count++;
+                if (count == n) {
+                    return i;  // 返回第 n 个空格的位置（下标）
+                }
+            }
+        }
+        return -1; // 没有找到第 n 个空格
+    }
+
+    public boolean isCronMatchDay(String planPeriodCron, int year, int month, int day) {
+        int scanDay = findNthSpace(planPeriodCron, 3) + 1, dayEnd = findNthSpace(planPeriodCron, 4);
+        String[] days = planPeriodCron.substring(scanDay, dayEnd).split(",");
+        boolean isDay = false;
+        for (String dayStr : days) {
+            if (dayStr.equals("*") || dayStr.equals("?") || Integer.parseInt(dayStr) == day) {
+                isDay = true;
+                break;
+            }
+        }
+        if (!isDay) {
+            return false;
+        }
+
+        int scanMonth = findNthSpace(planPeriodCron, 4) + 1, monthEnd = findNthSpace(planPeriodCron, 5);
+        if(!planPeriodCron.substring(scanMonth, monthEnd).equals("*") &&
+                !planPeriodCron.substring(scanMonth, monthEnd).equals("?") &&
+                !(Integer.parseInt(planPeriodCron.substring(scanMonth, monthEnd)) == month)){
+            return false;
+        }
+
+        int scanYear = findNthSpace(planPeriodCron, 5) + 1, yearEnd = findNthSpace(planPeriodCron, 6);
+        int theYear = 0;
+        String theYearStr;
+        if(yearEnd == -1){
+            theYearStr = planPeriodCron.substring(scanYear);
+        }else {
+            theYearStr = planPeriodCron.substring(scanYear, yearEnd);
+        }
+        if(theYearStr.equals("*") || theYearStr.equals("?")){
+            return true;
+        }
+        theYear = Integer.parseInt(theYearStr);
+        return theYear == year;
     }
 
 
@@ -302,17 +385,17 @@ public class ScheduledTask {
 
         // 设置执行时间cron表达式
         String cron = second + " " + minute + " " + hour
-                + " " + day + " "
-                + month + " ? ";
-
-        // 设置执行时间
-        scanPlan.setPlanPeriodCron(cron);
+                + " " + day + " * ?";
 
         // 如果是月任务，则设置年为*
         if(scanPlan.getPlanPeriodCn().equals("月")) {
-            cron = cron + "*";
-            scanPlan.setPlanPeriodCron(cron);
+            cron = second + " " + minute + " " + hour
+                    + " " + day + " "
+                    + month + " ? *";
         }
+
+        // 设置执行时间
+        scanPlan.setPlanPeriodCron(cron);
         log.info("设置执行时间cron表达式为: {}", cron);
     }
 
@@ -329,6 +412,7 @@ public class ScheduledTask {
         List<String> maxExecList = new ArrayList<>();
         maxExecList.add(maxExecTime);
         maxExecList.add(maxName);
+        log.info("找到最大执行时间: {}，其任务名为：{}", maxExecTime,maxName);
         return maxExecList;
     }
 

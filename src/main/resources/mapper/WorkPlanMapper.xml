@@ -4,11 +4,16 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <mapper namespace="com.cbb.workPlanTask.mapper.WorkPlanMapper">
+    <update id="updateInsertTime">
+        UPDATE NECHK.tbl_workplan
+        SET insert_time = #{insertTime}
+        WHERE plan_id = #{planId}
+    </update>
 
     <select id="getAllWorkPlans" resultType="com.cbb.workPlanTask.model.WorkPlan">
         SELECT *
         FROM NECHK.tbl_workplan
-        WHERE INSERT_TIME >= SYSDATE - INTERVAL '1' HOUR
+        WHERE INSERT_TIME >= SYSDATE - (#{findTime} / 24)
         ORDER BY INSERT_TIME DESC
     </select>
 

@@ -1,6 +1,5 @@
 package com.cbb.workPlanTask;
 
-import com.cbb.workPlanTask.Util.FileUtil;
 import com.cbb.workPlanTask.model.WorkPlan;
 import org.junit.jupiter.api.Test;
 
@@ -29,14 +28,14 @@ public class FileUtilTest {
         workPlan2.setMobile("1234567890");
         workPlan2.setInsertTime("2023-01-01 00:00:00");
 
-        FileUtil.appendWorkPlanToFile(workPlan1, "test.json");
-        FileUtil.appendWorkPlanToFile(workPlan2, "test.json");
+//        FileUtil.appendWorkPlanToFile(workPlan1, "test.json");
+//        FileUtil.appendWorkPlanToFile(workPlan2, "test.json");
     }
 
     @Test
     public void test2() throws IOException {
         List<WorkPlan> workPlanList = new ArrayList<>();
-        FileUtil.readAllWorkPlansAndClearFile("test.json", workPlanList);
+//        FileUtil.readAllWorkPlansAndClearFile("test.json", workPlanList);
         System.out.println(workPlanList);
     }
 }
